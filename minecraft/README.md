@@ -1,67 +1,97 @@
 # Minecraft Services
 
-The production server uses `nix-minecraft` through `../nixos/production-minecraft.nix`.
+The working Minecraft service for this sprint is the native NixOS `atm10.service`.
 
-ATM 10 is a separate live workload test service declared in `../nixos/atm10-live-test.nix`. It is not the final production server.
+The original plan considered Docker, Docker Compose, Podman, and `nix-minecraft`, but the completed implementation uses systemd directly through NixOS because it is cleaner for this server.
 
-## Production Server
+## ATM10 Test Server
 
-The production server is named `main` under `services.minecraft-servers.servers`.
+Main config:
 
-Common commands:
-
-```bash
-systemctl status minecraft-server-main
-journalctl -u minecraft-server-main -f
+```text
+nixos/modules/atm10.nix
 ```
 
-The production world data is stored in `/srv/minecraft/main`.
+Runtime state:
 
-See `../docs/nix-minecraft-plan.md` for the planned packwiz integration path.
-
-Before changing server type, mods, or world files, create a backup from the repository root:
-
-```bash
-sudo ./scripts/backup-world.sh
+```text
+/var/lib/atm10
 ```
 
-## ATM 10 Live Test
+World data:
 
-Download the latest ATM 10 server pack from CurseForge. As of the current planning notes, CurseForge lists ATM 10 7.0 for Minecraft 1.21.1 NeoForge and a matching `ServerFiles-7.0.zip`.
-
-After rebuilding NixOS so the `minecraft` user exists, install the test server files:
-
-```bash
-sudo ./scripts/install-atm10-test-server.sh ~/Downloads/ServerFiles-7.0.zip
+```text
+/var/lib/atm10/world
 ```
 
-The test service has a systemd path condition and will not start until `eula.txt` exists in `/srv/minecraft/atm10-test`. The install script creates that file after extracting the server pack.
-
-Start the live test:
+Service commands:
 
 ```bash
-sudo systemctl stop minecraft-server-main
-sudo systemctl start atm10-test-server
-journalctl -u atm10-test-server -f
+systemctl status atm10.service
+journalctl -u atm10.service -f
+sudo systemctl restart atm10.service
 ```
 
-Stop the live test before returning to the production server:
+The service:
+
+- runs as the `atm10` system user
+- uses Java 21 headless
+- downloads ATM10 `ServerFiles-7.0.zip`
+- runs NeoForge `21.1.228`
+- writes selected server properties
+- uses `/var/lib/atm10` for persistent state
+
+Important selected properties:
+
+```properties
+allow-flight=true
+difficulty=normal
+gamemode=creative
+max-players=50
+motd=All the Mods 10
+online-mode=true
+server-port=25565
+simulation-distance=8
+view-distance=8
+white-list=false
+```
+
+JVM args:
+
+```text
+-Xms4G
+-Xmx20G
+-XX:+UseZGC
+-XX:+ZGenerational
+-XX:+DisableExplicitGC
+```
+
+## Public Access
+
+FRP maps the server to the VPS:
+
+```text
+altruist 127.0.0.1:25565 -> VPS 66.112.209.106:25565
+```
+
+Service names:
 
 ```bash
-sudo systemctl stop atm10-test-server
-sudo systemctl start minecraft-server-main
+systemctl status frp-atm10.service
+systemctl status frp-ssh.service
 ```
 
-ATM 10 test data is stored in `/srv/minecraft/atm10-test`. To back it up:
+## Validation
 
-```bash
-sudo DATA_DIR=/srv/minecraft/atm10-test ./scripts/backup-world.sh
-```
+Verified on June 6, 2026:
 
-## Apply Configuration
+- `atm10.service` active and enabled.
+- Minecraft started on `*:25565`.
+- Player `rejoyy` logged in and joined the game.
+- FRP `atm10` proxy logged in to the VPS and started successfully.
 
-```bash
-sudo nixos-rebuild switch --flake .#minecraft-home-server
-```
+## Not Finished
 
-All players must use a matching client version for modded tests. Bedrock/Geyser support should be treated as a separate vanilla or Paper server, not part of the ATM 10 live test.
+- A separate final personal modpack profile was not built.
+- Full RAM validation is blocked by the defective RAM stick.
+- Automated world backups are still future work.

@@ -4,68 +4,72 @@
 
 Minecraft Java uses TCP port `25565`.
 
-GeyserMC Bedrock support usually uses UDP port `19132`.
+GeyserMC Bedrock support usually uses UDP port `19132`, but Bedrock/Geyser was not completed in this sprint. ATM10 is a Java modpack and requires matching Java/NeoForge client mods.
 
-Normal HTTP reverse proxies are not enough for Minecraft Java or Bedrock traffic. Caddy's standard `reverse_proxy` is designed for HTTP services. For Minecraft, use a TCP/UDP tunnel or a layer 4 proxy instead.
+## Implemented Public Access
 
-## Recommended Sprint Approach
+The completed public access path uses FRP.
 
-1. Prove the server works on the local network first.
-2. Test Wi-Fi stability before allowing outside players.
-3. Add VPS public access only after the local server is stable.
+```text
+Minecraft client
+    -> Ubuntu VPS 66.112.209.106:25565
+    -> frps on VPS port 7000
+    -> frp-atm10.service on altruist
+    -> 127.0.0.1:25565 on altruist
+    -> atm10.service
+```
 
-The sprint demo can pass with documented local access if the VPS tunnel is not stable yet.
+NixOS FRP client services:
 
-## Public Access Options
+- `frp-ssh.service`: local `127.0.0.1:22` to VPS `2222`.
+- `frp-atm10.service`: local `127.0.0.1:25565` to VPS `25565`.
 
-### Option A: frp
+Ubuntu VPS services:
 
-Use `frp` when the home server cannot accept inbound connections directly. The home server runs the client, the VPS runs the server, and the VPS exposes the Minecraft port to players.
+- `frps.service`: active, enabled, running `/opt/frp/frps -c /opt/frp/frps.toml`.
+- `iperf3.service`: active, enabled, running `/usr/bin/iperf3 --server --port 5201`.
 
-Pros:
+Verified NixOS FRP journal facts:
 
-- Designed for exposing internal services through a public server.
-- Supports TCP and UDP.
-- Good fit for Java and possible Bedrock/Geyser access.
+- `frp-ssh.service` started successfully on June 6, 2026 at 17:50:04 MDT.
+- `frp-atm10.service` started successfully on June 6, 2026 at 17:55:28 MDT.
+- Both clients logged in to the FRP server and started their proxies successfully.
 
-Cons:
+## Network Monitoring
 
-- Adds another service to configure and secure.
-- Requires careful token/password handling.
+A long-running network monitor was used to evaluate apartment internet stability.
 
-### Option B: WireGuard plus VPS port forwarding
+It collected:
 
-Create a WireGuard tunnel between the VPS and the home server. Forward public traffic from the VPS to the home server over the tunnel.
+- Ping samples to the local gateway, VPS, Cloudflare, Google, and Quad9.
+- DNS checks.
+- HTTP connectivity checks.
+- MTR route snapshots.
+- Public IP observations.
+- Route and Wi-Fi/link observations.
+- Controlled upload/download throughput tests to the VPS.
 
-Pros:
+The latest local evidence bundle is in:
 
-- General purpose and secure.
-- Useful for more than Minecraft.
-- Avoids exposing home network management ports.
+```text
+test/network/netprobe-data/altruist-latest/
+```
 
-Cons:
+Important result:
 
-- Requires firewall and routing configuration.
-- Slightly more networking work than frp.
+The report showed repeated all-target outages and nonzero local-gateway packet loss. Because the local gateway was affected, the next practical test is an Ethernet comparison. If wired Ethernet removes the gateway loss, the main problem is likely Wi-Fi. If gateway loss continues on Ethernet, investigate the router or apartment network.
 
-### Option C: Caddy with layer 4 support
+## Security Notes
 
-Use Caddy only if building Caddy with a layer 4 app/plugin. The default HTTP reverse proxy is not the right tool for Minecraft traffic.
+- SSH password authentication is disabled on the NixOS server.
+- FRP lets the home server initiate the connection outward, avoiding inbound apartment port forwarding.
+- Minecraft RCON is not enabled in the final ATM10 server properties.
+- `online-mode=true` is enabled.
+- Do not commit FRP tokens, VPS passwords, private keys, or Minecraft admin passwords.
 
-Pros:
+## Future Work
 
-- Keeps the Caddy workflow if already familiar.
-
-Cons:
-
-- Requires a custom Caddy build.
-- Adds complexity for this sprint.
-
-## Security Checklist
-
-- Keep `online-mode=true` unless there is a specific reason not to.
-- Use a whitelist for early testing.
-- Open only required ports.
-- Do not commit secrets, VPS keys, tokens, or real passwords.
-- Back up the world before migration or mod changes.
-- Keep the old cloud server as a fallback until the `nix-minecraft` home server runs reliably.
+- Add optional Bedrock/Geyser support only on a separate vanilla or Paper profile.
+- Add automated backups for `/var/lib/atm10/world`.
+- Run a wired Ethernet comparison test.
+- Re-check VPS firewall rules after final deployment.

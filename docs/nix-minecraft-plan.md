@@ -1,64 +1,43 @@
-# nix-minecraft Production Plan
+# Earlier nix-minecraft Plan
 
-The production server should be managed with `nix-minecraft`, not the temporary ATM 10 live-test service.
+This file records the earlier plan, but it is not the completed sprint implementation.
 
-The current production module is `../nixos/production-minecraft.nix`. It declares a `main` server under:
+The completed sprint implementation uses a native NixOS systemd service for ATM10. See:
 
-```nix
-services.minecraft-servers.servers.main
+```text
+nixos/modules/atm10.nix
 ```
 
-The generated systemd service is expected to be:
+## Why The Plan Changed
+
+The original plan considered `nix-minecraft` for a production Minecraft server and Docker/Compose during early planning. After implementation work, a direct NixOS systemd service was a better fit for this sprint:
+
+- The server pack can be downloaded with a fixed hash using `pkgs.fetchurl`.
+- The pack can be unpacked in a Nix derivation.
+- systemd can create and manage persistent state with `StateDirectory`.
+- The service user, JVM args, server properties, and startup command can all be declared in one Nix module.
+- Docker/Compose was not needed for the final ATM10 test server.
+
+## Current Production Direction
+
+Current working service:
 
 ```bash
-minecraft-server-main.service
+atm10.service
 ```
 
-## Current Baseline
+Current persistent data path:
 
-The current baseline uses:
-
-```nix
-pkgs.neoforgeServers.neoforge-1_21_1
+```text
+/var/lib/atm10
 ```
 
-This proves that `nix-minecraft` can create and manage the production server. It is not the final modpack state.
+Current public access path:
 
-## Next Step
-
-Use packwiz with `nix-minecraft` so the production server can symlink or copy declared `mods`, `config`, and server-specific files into `/srv/minecraft/main`.
-
-The intended shape is:
-
-```nix
-let
-  modpack = pkgs.fetchPackwizModpack {
-    url = "https://example.com/pack.toml";
-    packHash = "sha256-...";
-  };
-in
-{
-  services.minecraft-servers.servers.main = {
-    enable = true;
-    package = pkgs.neoforgeServers.neoforge-1_21_1;
-    symlinks = {
-      mods = "${modpack}/mods";
-    };
-    files = {
-      config = "${modpack}/config";
-    };
-  };
-}
+```text
+FRP TCP proxy on VPS port 25565
 ```
 
-Use a stable URL, tag, or commit for the packwiz `pack.toml` so the build remains reproducible.
+## Future Use Of nix-minecraft
 
-## ATM 10 Role
-
-ATM 10 is only a live workload test. It should be started manually with:
-
-```bash
-sudo systemctl start atm10-test-server
-```
-
-Stop the production server first if both are configured to use port `25565`.
+`nix-minecraft` may still be useful later for a vanilla, Paper, or smaller modded profile. For this sprint, it should be described as an explored option rather than the completed implementation.
