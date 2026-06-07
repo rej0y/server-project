@@ -1,0 +1,3 @@
+label,samples,failure_percent,average_ms,p95_ms,max_ms
+cloudflare-connectivity,2643,2.0431,184.339,417.284,4881.822
+google-connectivity,2643,1.7404,133.278,204.621,4868.503
