@@ -1,25 +1,25 @@
 # Internet Stability Report
 
 - Host: `altruist`
-- Measurement window: `2026-06-04T20:34:41.704000+00:00` to `2026-06-06T09:05:24.436000+00:00`
-- Monitoring duration: 1.52d
-- Report generated: `2026-06-06T09:05:28.467Z`
-- All-target Internet outages: 617 totaling 24.7m
+- Measurement window: `2026-06-04T20:34:41.704000+00:00` to `2026-06-07T07:22:50.491000+00:00`
+- Monitoring duration: 2.45d
+- Report generated: `2026-06-07T07:22:55.846Z`
+- All-target Internet outages: 651 totaling 26.1m
 - Longest all-target outage: 17.9s
 - Monitoring-process gaps: 1
 - Public IP changes observed: 0
 - Default route changes observed: 2
-- Wi-Fi signal average/minimum: -55.91 / -61.00 dBm
+- Wi-Fi signal average/minimum: -56.08 / -61.00 dBm
 - Local interface RX/TX errors: 0 / 0
 - Local interface RX/TX drops: 0 / 0
 - Collector task errors: 0
 
 ## Technician Summary
 
-- Grouped incidents: 136 using a 120-second merge window.
+- Grouped incidents: 157 using a 120-second merge window.
 - Worst grouped incident: 3.6m outage time across 96 outages.
-- Local gateway packet loss/p95/p99: 2.6228% / 50.50 ms / 391.00 ms.
-- Wi-Fi signal average/minimum during report: -55.91 / -61.00 dBm.
+- Local gateway packet loss/p95/p99: 1.6332% / 30.20 ms / 308.00 ms.
+- Wi-Fi signal average/minimum during report: -56.08 / -61.00 dBm.
 - If local gateway loss is nonzero while Wi-Fi signal is acceptable, check the router/AP, Wi-Fi channel/interference, modem/ONT handoff, and upstream error counters.
 
 ## Worst Grouped Incidents
@@ -56,11 +56,11 @@
 
 | Target | Scope | Samples | Loss % | Average ms | p95 ms | p99 ms | Max ms | Idle p95 | Loaded p95 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| local-gateway | gateway | 62072 | 2.6228 | 15.95 | 50.50 | 391.00 | 1000.00 | 50.30 | 453.95 |
-| vps | internet | 62345 | 3.0524 | 54.51 | 108.00 | 453.59 | 998.00 | 108.00 | 467.30 |
-| cloudflare | internet | 62345 | 3.0780 | 29.77 | 87.08 | 465.00 | 999.00 | 86.80 | 467.45 |
-| google | internet | 62345 | 2.5022 | 33.58 | 89.10 | 495.16 | 992.00 | 88.90 | 548.50 |
-| quad9 | internet | 62345 | 3.0187 | 40.61 | 102.00 | 514.00 | 1000.00 | 101.60 | 461.35 |
+| local-gateway | gateway | 102195 | 1.6332 | 12.38 | 30.20 | 308.00 | 1000.00 | 30.20 | 439.00 |
+| vps | internet | 102468 | 2.2261 | 56.43 | 92.40 | 376.00 | 998.00 | 92.30 | 446.50 |
+| cloudflare | internet | 102468 | 2.1090 | 25.14 | 54.00 | 370.00 | 999.00 | 53.90 | 454.00 |
+| google | internet | 102468 | 1.5800 | 28.85 | 55.10 | 387.00 | 992.00 | 54.90 | 505.60 |
+| quad9 | internet | 102468 | 2.0670 | 35.87 | 66.80 | 413.00 | 1000.00 | 66.71 | 425.50 |
 
 ## Interpretation
 
