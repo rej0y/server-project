@@ -2678,25 +2678,6 @@ def generate_report(run_dir: pathlib.Path) -> pathlib.Path:
     write_hourly_loss_svg(run_dir / "hourly-loss.svg", hourly_loss_rows, ping_labels)
     write_throughput_svg(run_dir / "throughput.svg", throughput_rows)
     write_wifi_gateway_svg(run_dir / "wifi-gateway.svg", wifi_gateway_rows)
-    write_service_timeseries_svg(
-        run_dir / "dns-latency.svg",
-        "DNS query latency and failures",
-        dns_sample_rows,
-        "query_ms",
-        unit="ms",
-        y_label="query ms",
-    )
-    write_service_timeseries_svg(
-        run_dir / "http-latency.svg",
-        "HTTP connectivity latency and failures",
-        http_sample_rows,
-        "time_total_ms",
-        unit="ms",
-        y_label="total ms",
-    )
-    write_link_counters_svg(run_dir / "link-counters.svg", link_counter_rows)
-    write_timeline_events_svg(run_dir / "route-ip-timeline.svg", timeline_rows, first_time, last_time)
-    write_mtr_quality_svg(run_dir / "mtr-quality.svg", mtr_rows)
     gateway_summary = next((row for row in ping_rows if row.get("scope") == "gateway"), None)
     top_ping_loss_rows = sorted(
         ping_rows,
@@ -2879,11 +2860,6 @@ def generate_report(run_dir: pathlib.Path) -> pathlib.Path:
         ("Packet Loss By Hour", "hourly-loss.svg"),
         ("Throughput And Retransmits", "throughput.svg"),
         ("Wi-Fi Signal Vs Gateway Latency", "wifi-gateway.svg"),
-        ("DNS Query Latency", "dns-latency.svg"),
-        ("HTTP Connectivity Latency", "http-latency.svg"),
-        ("Local Link Counters", "link-counters.svg"),
-        ("Public IP And Route Timeline", "route-ip-timeline.svg"),
-        ("MTR Route Quality", "mtr-quality.svg"),
     ]
     diagnostic_charts = "".join(
         f'<h3>{html.escape(title)}</h3>'
