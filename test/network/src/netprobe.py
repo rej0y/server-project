@@ -642,197 +642,208 @@ def downsample(points: list[tuple[dt.datetime, float | None]], limit: int = 2500
     return sampled[: limit * 2]
 
 
-def write_latency_svg(
-    path: pathlib.Path,
-    label: str,
-    points: list[tuple[dt.datetime, float | None]],
-    throughput_intervals: list[tuple[dt.datetime, dt.datetime]] | None = None,
-) -> None:
-    throughput_intervals = throughput_intervals or []
-    original_points = sorted(points, key=lambda point: point[0])
-    points = downsample(original_points)
+def write_latency_svg(path: pathlib.Path, label: str, points: list[tuple[dt.datetime, float | None]]) -> None:
+    points = downsample(points)
     if not points:
         return
-    width, height = 1200, 390
-    left, right, top, bottom = 82, 160, 48, 78
+    width, height = 1200, 340
+    left, right, top, bottom = 70, 30, 30, 75
     start = points[0][0].timestamp()
     end = max(points[-1][0].timestamp(), start + 1)
     values = [float(value) for _, value in points if value is not None]
-    all_values = [float(value) for _, value in original_points if value is not None]
-    failure_count = sum(1 for _, value in original_points if value is None)
-    sample_count = len(original_points)
-    p50 = percentile(all_values, 50)
-    p95 = percentile(all_values, 95)
-    p99 = percentile(all_values, 99)
-    max_value = max(all_values) if all_values else None
-    ceiling_source = percentile(all_values, 99.5) or max_value or 10.0
-    ceiling = max(10.0, math.ceil(float(ceiling_source) / 10) * 10)
+    ceiling = max(10.0, percentile(values, 99.5) or 10.0)
     duration = end - start
-    plot_width = width - left - right
-    plot_height = height - top - bottom
+    point_data = [
+        [int(when.timestamp() * 1000), None if value is None else round(float(value), 3)]
+        for when, value in points
+    ]
+    point_json = json.dumps(point_data, separators=(",", ":"))
 
     def x_position(when: dt.datetime) -> float:
-        return left + (when.timestamp() - start) / (end - start) * plot_width
+        return left + (when.timestamp() - start) / (end - start) * (width - left - right)
 
     def y_position(value: float) -> float:
         capped = min(value, ceiling)
-        return top + (1 - capped / ceiling) * plot_height
+        return top + (1 - capped / ceiling) * (height - top - bottom)
 
-    positive_gaps = [
-        (points[index][0] - points[index - 1][0]).total_seconds()
-        for index in range(1, len(points))
-        if (points[index][0] - points[index - 1][0]).total_seconds() > 0
-    ]
-    median_gap = percentile(positive_gaps, 50) or 2.0
-    gap_threshold = max(10.0, median_gap * 4)
+    def format_tick(when: dt.datetime) -> str:
+        local = when.astimezone()
+        if duration >= 86400:
+            return local.strftime("%m/%d %H:%M")
+        return local.strftime("%H:%M")
 
-    segments: list[list[tuple[dt.datetime, float]]] = []
-    current_segment: list[tuple[dt.datetime, float]] = []
-    previous_when: dt.datetime | None = None
-    for when, value in points:
-        if (
-            value is None
-            or previous_when is None
-            or (when - previous_when).total_seconds() > gap_threshold
-        ):
-            if current_segment:
-                segments.append(current_segment)
-                current_segment = []
-        if value is not None:
-            current_segment.append((when, float(value)))
-        previous_when = when
-    if current_segment:
-        segments.append(current_segment)
-
-    segment_markup = "\n".join(
-        '<polyline points="{}" fill="none" stroke="#2563eb" stroke-width="1.7" '
-        'stroke-linecap="round" stroke-linejoin="round"/>'.format(
-            " ".join(f"{x_position(when):.1f},{y_position(value):.1f}" for when, value in segment)
-        )
-        for segment in segments
-        if len(segment) > 1
+    tick_count = 6
+    ticks = []
+    for index in range(tick_count):
+        offset = duration * index / (tick_count - 1)
+        when = dt.datetime.fromtimestamp(start + offset, UTC)
+        ticks.append((when, format_tick(when)))
+    tick_lines = "\n".join(
+        f'<line x1="{x_position(when):.1f}" y1="{height - bottom}" x2="{x_position(when):.1f}" '
+        f'y2="{height - bottom + 6}" stroke="#64748b"/>'
+        for when, _ in ticks
     )
-    point_markup = "\n".join(
-        f'<circle cx="{x_position(when):.1f}" cy="{y_position(value):.1f}" r="2.2" '
-        f'fill="#2563eb" opacity="0.75"/>'
-        for segment in segments
-        for when, value in segment
-        if len(segment) == 1
+    tick_labels = "\n".join(
+        f'<text x="{x_position(when):.1f}" y="{height - bottom + 22}" '
+        f'font-family="sans-serif" font-size="12" text-anchor="middle">{html.escape(text)}</text>'
+        for when, text in ticks
     )
-
-    grid_lines = []
-    for ratio in (0, 0.25, 0.5, 0.75, 1):
-        value = ceiling * ratio
-        y_value = y_position(value)
-        grid_lines.append(
-            f'<line x1="{left}" y1="{y_value:.1f}" x2="{width - right}" y2="{y_value:.1f}" '
-            'stroke="#e2e8f0"/>'
-        )
-        grid_lines.append(
-            f'<text x="{left - 8}" y="{y_value + 4:.1f}" font-family="sans-serif" '
-            f'font-size="12" text-anchor="end">{value:.0f}</text>'
-        )
-
-    def reference_line(value: float | None, color: str, text: str) -> str:
-        if value is None:
-            return ""
-        y_value = y_position(float(value))
-        return (
-            f'<line x1="{left}" y1="{y_value:.1f}" x2="{width - right}" y2="{y_value:.1f}" '
-            f'stroke="{color}" stroke-width="1.5" stroke-dasharray="6 4"/>'
-            f'<text x="{width - right + 8}" y="{y_value + 4:.1f}" font-family="sans-serif" '
-            f'font-size="12" fill="{color}">{html.escape(text)} {float(value):.1f} ms</text>'
-        )
-
-    loaded_bands = []
-    for interval_start, interval_end in throughput_intervals:
-        band_start = max(interval_start.timestamp(), start)
-        band_end = min(interval_end.timestamp(), end)
-        if band_end <= band_start:
-            continue
-        x_start = left + (band_start - start) / duration * plot_width
-        x_end = left + (band_end - start) / duration * plot_width
-        loaded_bands.append(
-            f'<rect x="{x_start:.1f}" y="{top}" width="{max(1, x_end - x_start):.1f}" '
-            f'height="{plot_height}" fill="#f59e0b" opacity="0.12">'
-            f'<title>Throughput test window</title></rect>'
-        )
-
-    failure_marks = []
-    for when, value in points:
-        if value is not None:
-            continue
-        x_value = x_position(when)
-        failure_marks.append(
-            f'<line x1="{x_value:.1f}" y1="{height - bottom - 28}" x2="{x_value:.1f}" '
-            f'y2="{height - bottom}" stroke="#dc2626" stroke-width="1.5" opacity="0.75">'
-            f'<title>failed ping at {html.escape(local_table_time(when))}</title></line>'
-        )
-    failure_markup = "\n".join(failure_marks)
-
-    inspect_points = []
-    for when, value in points:
-        x_value = x_position(when)
-        loaded = in_intervals(when, throughput_intervals)
-        if value is None:
-            inspect_points.append(
-                {
-                    "x": round(x_value, 1),
-                    "y": round(height - bottom - 28, 1),
-                    "color": "#dc2626",
-                    "lines": [
-                        label,
-                        local_time_label(when, duration),
-                        "failed ping",
-                        f"Loaded: {'yes' if loaded else 'no'}",
-                    ],
-                }
-            )
-            continue
-        clipped = float(value) > ceiling
-        inspect_points.append(
-            {
-                "x": round(x_value, 1),
-                "y": round(y_position(float(value)), 1),
-                "color": "#2563eb" if not loaded else "#f59e0b",
-                "lines": [
-                    label,
-                    local_time_label(when, duration),
-                    f"Latency: {float(value):.1f} ms" + (" clipped" if clipped else ""),
-                    f"Loaded: {'yes' if loaded else 'no'}",
-                ],
-            }
-        )
-
-    loss_percent = failure_count / sample_count * 100 if sample_count else 0.0
-    subtitle = (
-        f"{sample_count} samples, {loss_percent:.3f}% loss, "
-        f"p50 {fmt_number(p50)} ms, p95 {fmt_number(p95)} ms, "
-        f"p99 {fmt_number(p99)} ms, max {fmt_number(max_value)} ms"
+    success_points = " ".join(
+        f"{x_position(when):.1f},{y_position(float(value)):.1f}"
+        for when, value in points
+        if value is not None
+    )
+    failures = "\n".join(
+        f'<line x1="{x_position(when):.1f}" y1="{top}" x2="{x_position(when):.1f}" '
+        f'y2="{height - bottom}" stroke="#dc2626" stroke-width="1"/>'
+        for when, value in points
+        if value is None
     )
     escaped = html.escape(label)
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}">
 <rect width="{width}" height="{height}" fill="white"/>
-<style>
-.small{{font-family:system-ui,sans-serif;font-size:12px;fill:#475569}}
-.title{{font-family:system-ui,sans-serif;font-size:16px;font-weight:700;fill:#0f172a}}
-</style>
-<text x="{left}" y="22" class="title">{escaped} latency</text>
-<text x="{left}" y="40" class="small">{html.escape(subtitle)}</text>
-{"".join(loaded_bands)}
-{"".join(grid_lines)}
+<text x="{left}" y="20" font-family="sans-serif" font-size="15">{escaped} latency (red = failed ping; drag/hover for time)</text>
 <line x1="{left}" y1="{height - bottom}" x2="{width - right}" y2="{height - bottom}" stroke="#64748b"/>
 <line x1="{left}" y1="{top}" x2="{left}" y2="{height - bottom}" stroke="#64748b"/>
-{svg_time_ticks(dt.datetime.fromtimestamp(start, UTC), dt.datetime.fromtimestamp(end, UTC), width, height, left, right, bottom)}
-{reference_line(p50, "#64748b", "p50")}
-{reference_line(p95, "#dc2626", "p95")}
-{segment_markup}
-{point_markup}
-{failure_markup}
-<rect x="{width - right + 18}" y="{top + 22}" width="12" height="12" fill="#f59e0b" opacity="0.35"/><text x="{width - right + 36}" y="{top + 32}" class="small">throughput test</text>
-<line x1="{width - right + 18}" y1="{top + 54}" x2="{width - right + 30}" y2="{top + 54}" stroke="#dc2626" stroke-width="1.5"/><text x="{width - right + 36}" y="{top + 58}" class="small">failed ping</text>
-<line x1="{width - right + 18}" y1="{top + 78}" x2="{width - right + 30}" y2="{top + 78}" stroke="#2563eb" stroke-width="2"/><text x="{width - right + 36}" y="{top + 82}" class="small">successful ping</text>
-{svg_inspector(inspect_points, width, height, left, right, top, bottom, tooltip_width=300)}
+<text x="5" y="{top + 5}" font-family="sans-serif" font-size="12">{ceiling:.1f} ms</text>
+<text x="35" y="{height - bottom + 5}" font-family="sans-serif" font-size="12">0 ms</text>
+{tick_lines}
+{tick_labels}
+<text x="{(left + width - right) / 2:.1f}" y="{height - 18}" font-family="sans-serif" font-size="12" text-anchor="middle">Local time</text>
+<polyline points="{success_points}" fill="none" stroke="#2563eb" stroke-width="1"/>
+{failures}
+<line id="cursor-line" x1="{left}" y1="{top}" x2="{left}" y2="{height - bottom}" stroke="#111827" stroke-width="1.5" stroke-dasharray="4 3" visibility="hidden"/>
+<circle id="cursor-dot" cx="{left}" cy="{height - bottom}" r="4" fill="#2563eb" stroke="white" stroke-width="1.5" visibility="hidden"/>
+<g id="tooltip" visibility="hidden">
+<rect id="tooltip-bg" x="0" y="0" width="158" height="52" rx="5" fill="#111827" opacity="0.92"/>
+<text id="tooltip-time" x="10" y="20" font-family="sans-serif" font-size="13" fill="white"></text>
+<text id="tooltip-value" x="10" y="40" font-family="sans-serif" font-size="13" fill="white"></text>
+</g>
+<rect id="hit-area" x="{left}" y="{top}" width="{width - left - right}" height="{height - top - bottom}" fill="transparent" pointer-events="all" style="cursor: crosshair;"/>
+<script><![CDATA[
+(function () {{
+  const points = {point_json};
+  const bounds = {{
+    left: {left}, right: {right}, top: {top}, bottom: {bottom},
+    width: {width}, height: {height},
+    start: {int(start * 1000)}, end: {int(end * 1000)}, ceiling: {ceiling:.6f}
+  }};
+  const svg = document.documentElement;
+  const hitArea = document.getElementById("hit-area");
+  const cursorLine = document.getElementById("cursor-line");
+  const cursorDot = document.getElementById("cursor-dot");
+  const tooltip = document.getElementById("tooltip");
+  const tooltipTime = document.getElementById("tooltip-time");
+  const tooltipValue = document.getElementById("tooltip-value");
+  const plotWidth = bounds.width - bounds.left - bounds.right;
+  const plotHeight = bounds.height - bounds.top - bounds.bottom;
+  let dragging = false;
+
+  function clamp(value, low, high) {{
+    return Math.min(Math.max(value, low), high);
+  }}
+
+  function xFor(ms) {{
+    return bounds.left + ((ms - bounds.start) / (bounds.end - bounds.start)) * plotWidth;
+  }}
+
+  function yFor(value) {{
+    const capped = Math.min(value, bounds.ceiling);
+    return bounds.top + (1 - capped / bounds.ceiling) * plotHeight;
+  }}
+
+  function eventX(event) {{
+    const matrix = svg.getScreenCTM();
+    if (!matrix) {{
+      return bounds.left;
+    }}
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    return point.matrixTransform(matrix.inverse()).x;
+  }}
+
+  function nearestIndex(ms) {{
+    let low = 0;
+    let high = points.length - 1;
+    while (low < high) {{
+      const mid = Math.floor((low + high) / 2);
+      if (points[mid][0] < ms) {{
+        low = mid + 1;
+      }} else {{
+        high = mid;
+      }}
+    }}
+    if (low > 0 && Math.abs(points[low - 1][0] - ms) < Math.abs(points[low][0] - ms)) {{
+      return low - 1;
+    }}
+    return low;
+  }}
+
+  function formatTime(ms) {{
+    const date = new Date(ms);
+    const pad = (value) => String(value).padStart(2, "0");
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    const seconds = pad(date.getSeconds());
+    if ((bounds.end - bounds.start) >= 86400000) {{
+      return `${{month}}/${{day}} ${{hours}}:${{minutes}}`;
+    }}
+    return `${{hours}}:${{minutes}}:${{seconds}}`;
+  }}
+
+  function update(event) {{
+    const x = clamp(eventX(event), bounds.left, bounds.width - bounds.right);
+    const ms = bounds.start + ((x - bounds.left) / plotWidth) * (bounds.end - bounds.start);
+    const point = points[nearestIndex(ms)];
+    const pointX = xFor(point[0]);
+    const failed = point[1] === null;
+    const pointY = failed ? bounds.top : yFor(point[1]);
+    const tooltipX = clamp(pointX + 10, bounds.left, bounds.width - bounds.right - 158);
+    const tooltipY = clamp(pointY - 62, bounds.top, bounds.height - bounds.bottom - 56);
+
+    cursorLine.setAttribute("x1", pointX);
+    cursorLine.setAttribute("x2", pointX);
+    cursorLine.setAttribute("visibility", "visible");
+    cursorDot.setAttribute("cx", pointX);
+    cursorDot.setAttribute("cy", pointY);
+    cursorDot.setAttribute("fill", failed ? "#dc2626" : "#2563eb");
+    cursorDot.setAttribute("visibility", "visible");
+    tooltipTime.textContent = formatTime(point[0]);
+    tooltipValue.textContent = failed ? "failed ping" : `${{Number(point[1]).toFixed(1)}} ms`;
+    tooltip.setAttribute("transform", `translate(${{tooltipX}}, ${{tooltipY}})`);
+    tooltip.setAttribute("visibility", "visible");
+  }}
+
+  function hide() {{
+    if (dragging) {{
+      return;
+    }}
+    cursorLine.setAttribute("visibility", "hidden");
+    cursorDot.setAttribute("visibility", "hidden");
+    tooltip.setAttribute("visibility", "hidden");
+  }}
+
+  hitArea.addEventListener("pointermove", update);
+  hitArea.addEventListener("pointerdown", (event) => {{
+    dragging = true;
+    hitArea.setPointerCapture(event.pointerId);
+    update(event);
+  }});
+  hitArea.addEventListener("pointerup", (event) => {{
+    dragging = false;
+    hitArea.releasePointerCapture(event.pointerId);
+    update(event);
+  }});
+  hitArea.addEventListener("pointercancel", () => {{
+    dragging = false;
+    hide();
+  }});
+  hitArea.addEventListener("pointerleave", hide);
+}})();
+]]></script>
 </svg>
 """
     path.write_text(svg, encoding="utf-8")
@@ -2349,12 +2360,7 @@ def generate_report(run_dir: pathlib.Path) -> pathlib.Path:
             "loaded_p95_ms": round(percentile(loaded, 95), 3) if loaded else None,
         }
         ping_rows.append(row)
-        write_latency_svg(
-            run_dir / f"latency-{slug(entry['label'])}.svg",
-            entry["label"],
-            entry["chart"],
-            throughput_intervals,
-        )
+        write_latency_svg(run_dir / f"latency-{slug(entry['label'])}.svg", entry["label"], entry["chart"])
 
     ping_labels = [entry["label"] for entry in pings.values()]
     hourly_buckets: dict[tuple[str, str], dict[str, Any]] = {}
@@ -2869,23 +2875,23 @@ def generate_report(run_dir: pathlib.Path) -> pathlib.Path:
         for entry in pings.values()
     )
     diagnostic_chart_defs = [
-        ("Outage Timeline", "outage-timeline.svg", 260),
-        ("Packet Loss By Hour", "hourly-loss.svg", 340),
-        ("Throughput And Retransmits", "throughput.svg", 460),
-        ("Wi-Fi Signal Vs Gateway Latency", "wifi-gateway.svg", 360),
-        ("DNS Query Latency", "dns-latency.svg", 360),
-        ("HTTP Connectivity Latency", "http-latency.svg", 360),
-        ("Local Link Counters", "link-counters.svg", 430),
-        ("Public IP And Route Timeline", "route-ip-timeline.svg", 310),
-        ("MTR Route Quality", "mtr-quality.svg", 420),
+        ("Outage Timeline", "outage-timeline.svg"),
+        ("Packet Loss By Hour", "hourly-loss.svg"),
+        ("Throughput And Retransmits", "throughput.svg"),
+        ("Wi-Fi Signal Vs Gateway Latency", "wifi-gateway.svg"),
+        ("DNS Query Latency", "dns-latency.svg"),
+        ("HTTP Connectivity Latency", "http-latency.svg"),
+        ("Local Link Counters", "link-counters.svg"),
+        ("Public IP And Route Timeline", "route-ip-timeline.svg"),
+        ("MTR Route Quality", "mtr-quality.svg"),
     ]
     diagnostic_charts = "".join(
         f'<h3>{html.escape(title)}</h3>'
         f'<object class="diagnostic-chart" data="{html.escape(filename)}" '
-        f'type="image/svg+xml" aria-label="{html.escape(title)}" style="height:{height_px}px">'
+        f'type="image/svg+xml" aria-label="{html.escape(title)}">'
         f'<a href="{html.escape(filename)}">Open {html.escape(title)}</a>'
         f'</object>'
-        for title, filename, height_px in diagnostic_chart_defs
+        for title, filename in diagnostic_chart_defs
         if (run_dir / filename).exists()
     )
     report_html = f"""<!doctype html>
@@ -2894,8 +2900,8 @@ def generate_report(run_dir: pathlib.Path) -> pathlib.Path:
 body{{font-family:system-ui,sans-serif;max-width:1300px;margin:2rem auto;padding:0 1rem;color:#172033}}
 table{{border-collapse:collapse;width:100%;margin:1rem 0}}th,td{{border:1px solid #cbd5e1;padding:.45rem;text-align:right}}
 th:first-child,td:first-child{{text-align:left}}th{{background:#e2e8f0}}
-.latency-chart{{width:100%;height:390px;border:1px solid #cbd5e1;display:block;border-radius:6px;background:white}}
-.diagnostic-chart{{width:100%;border:1px solid #cbd5e1;display:block;border-radius:6px;background:white}}
+.latency-chart{{width:100%;height:340px;border:1px solid #cbd5e1;display:block}}
+.diagnostic-chart{{width:100%;height:360px;border:1px solid #cbd5e1;display:block}}
 .cards{{display:flex;flex-wrap:wrap;gap:1rem}}.card{{background:#f1f5f9;padding:1rem;min-width:180px;border-radius:6px}}
 code{{background:#f1f5f9;padding:.1rem .25rem}}
 </style></head><body>
