@@ -1,0 +1,47 @@
+[33mcommit a7f47f3248ed9e09223a01132c0d5ecfb6fadff4[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: rej0y <zhoushengjian1@gmail.com>
+Date:   Tue Jun 9 23:47:29 2026 -0600
+
+    commit
+
+[33mcommit 4cba062eb6a3c55f3793d35acbb231140edc9419[m
+Author: rej0y <zhoushengjian1@gmail.com>
+Date:   Tue Jun 9 23:23:37 2026 -0600
+
+    commit
+
+[33mcommit fb5b5c0ce04c76ee14890f4a3100274313fa831a[m[33m ([m[1;32mrecovery/netprobe-restored[m[33m)[m
+Author: rej0y <zhoushengjian1@gmail.com>
+Date:   Tue Jun 9 17:33:13 2026 -0600
+
+    Restore four diagnostic chart version
+
+[33mcommit 24e4b0cc3bf42a4b18d909bfc7469c5d09d44e93[m
+Author: rej0y <zhoushengjian1@gmail.com>
+Date:   Tue Jun 9 17:27:44 2026 -0600
+
+    Revert netprobe graphs to saved earlier version
+
+[33mcommit ba115cdb4133963ca44d507e2c9d18b32571ae01[m
+Author: rej0y <zhoushengjian1@gmail.com>
+Date:   Tue Jun 9 17:18:56 2026 -0600
+
+    Recover netprobe project scaffold
+
+[33mcommit febc214424035886b07f54e1fbbfb6923eecea9e[m
+Author: rej0y <zhoushengjian1@gmail.com>
+Date:   Sun Jun 7 14:18:06 2026 -0600
+
+    refresh network log
+
+[33mcommit 945d460a966aa596d2bad61472a27afa608a6b17[m
+Author: rej0y <zhoushengjian1@gmail.com>
+Date:   Sat Jun 6 23:59:00 2026 -0600
+
+    Document NixOS ATM10 server sprint
+
+[33mcommit debf4d4f936a1052746ceaf5b37cfdd194c666e8[m
+Author: rej0y <zhoushengjian1@gmail.com>
+Date:   Sat Jun 6 21:35:15 2026 -0600
+
+    Initial commit
