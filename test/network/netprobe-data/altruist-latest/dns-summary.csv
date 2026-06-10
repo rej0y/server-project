@@ -1,4 +1,0 @@
-label,samples,failure_percent,average_ms,p95_ms,max_ms
-system-resolver,3422,0.2922,66.797,134.45,1918.0
-cloudflare-dns,3422,2.2501,22.648,44.0,1141.0
-google-dns,3422,1.5488,50.302,74.0,1782.0
